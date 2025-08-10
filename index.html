@@ -449,19 +449,13 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(255,255,255,0.95);
+            background: rgba(255,255,255,0.9);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 9999;
             backdrop-filter: blur(5px);
-            transition: opacity 0.3s ease-in-out;
-        }
-        
-        .loading-overlay.hidden {
-            opacity: 0;
-            pointer-events: none;
         }
         
         .loading-overlay h4 {
@@ -1149,12 +1143,31 @@
         const database = firebase.database();
         
         // Initialize Telegram Web App
-        const tg = window.Telegram.WebApp;
-        tg.ready();
-        tg.expand();
+        let tg, user;
         
-        // Get user data from Telegram
-        const user = tg.initDataUnsafe.user;
+        try {
+            tg = window.Telegram?.WebApp;
+            if (tg) {
+                tg.ready();
+                tg.expand();
+                user = tg.initDataUnsafe?.user;
+            }
+        } catch (error) {
+            console.log("Not running in Telegram environment:", error);
+        }
+        
+        // Fallback user data for testing
+        if (!user) {
+            user = {
+                id: 123456789,
+                first_name: "Test User",
+                last_name: "Demo",
+                username: "testuser",
+                photo_url: "https://via.placeholder.com/60x60/0088cc/ffffff?text=TU"
+            };
+            console.log("Using fallback user data for testing:", user);
+        }
+        
         console.log("User data:", user);
         
         // Bot username
@@ -1175,96 +1188,153 @@
         };
         
         // Show loading overlay
-        const loadingOverlay = document.getElementById('loadingOverlay');
-        loadingOverlay.style.display = 'flex';
+        document.getElementById('loadingOverlay').style.display = 'flex';
         
         // Initialize UI with user data
         function initializeUI() {
-            // Set user profile info
-            document.getElementById('userName').textContent = user.first_name + (user.last_name ? ' ' + user.last_name : '');
-            document.getElementById('userId').textContent = `ID: ${user.id}`;
-            document.getElementById('homeUserName').textContent = user.first_name;
-            
-            // Set user profile picture
-            if (user.photo_url) {
-                document.getElementById('userProfilePic').src = user.photo_url;
+            try {
+                // Set user profile info
+                document.getElementById('userName').textContent = user.first_name + (user.last_name ? ' ' + user.last_name : '');
+                document.getElementById('userId').textContent = `ID: ${user.id}`;
+                document.getElementById('homeUserName').textContent = user.first_name;
+                
+                // Set user profile picture
+                if (user.photo_url) {
+                    document.getElementById('userProfilePic').src = user.photo_url;
+                }
+                
+                // Generate referral link
+                const referralLink = `https://t.me/${botUsername}?start=${user.id}`;
+                document.getElementById('referralLink').textContent = referralLink;
+                
+                // Load user data from Firebase
+                loadUserData();
+            } catch (error) {
+                console.error("Error initializing UI:", error);
+                showToast("Error initializing app. Please refresh.", "error");
+                document.getElementById('loadingOverlay').style.display = 'none';
             }
-            
-            // Generate referral link
-            const referralLink = `https://t.me/${botUsername}?start=${user.id}`;
-            document.getElementById('referralLink').textContent = referralLink;
-            
-            // Load user data from Firebase
-            loadUserData();
         }
         
         // Load user data from Firebase
         function loadUserData() {
-            const userRef = database.ref(`users/${user.id}`);
-            
-            userRef.once('value')
-                .then((snapshot) => {
-                    const userData = snapshot.val();
-                    
-                    if (userData) {
-                        // User exists, load data
-                        appState.points = userData.points || 0;
-                        appState.adsWatchedToday = userData.adsWatchedToday || 0;
-                        appState.referrals = userData.referrals || 0;
-                        appState.referralEarnings = userData.referralEarnings || 0;
-                        appState.lastBonusDate = userData.lastBonusDate || null;
-                        appState.withdrawalHistory = userData.withdrawalHistory || [];
-                        appState.referralsList = userData.referralsList || [];
+            try {
+                const userRef = database.ref(`users/${user.id}`);
+                
+                // Set a timeout to prevent infinite loading
+                const timeoutId = setTimeout(() => {
+                    console.log("Firebase connection timeout, using offline mode");
+                    initializeOfflineMode();
+                }, 10000);
+                
+                userRef.once('value')
+                    .then((snapshot) => {
+                        clearTimeout(timeoutId);
+                        const userData = snapshot.val();
                         
-                        // Check if it's a new day for ads and bonus
-                        checkNewDay();
-                    } else {
-                        // New user, initialize data
-                        saveUserData();
-                    }
-                    
-                    // Update UI
-                    updateUI();
-                    
-                    // Hide loading overlay with fade effect
-                    loadingOverlay.classList.add('hidden');
-                    setTimeout(() => {
-                        loadingOverlay.style.display = 'none';
-                    }, 300);
-                })
-                .catch((error) => {
-                    console.error("Error loading user data:", error);
-                    showToast("Failed to load user data. Please try again.", "error");
-                    
-                    // Hide loading overlay even on error
-                    loadingOverlay.classList.add('hidden');
-                    setTimeout(() => {
-                        loadingOverlay.style.display = 'none';
-                    }, 300);
-                });
+                        if (userData) {
+                            // User exists, load data
+                            appState.points = userData.points || 0;
+                            appState.adsWatchedToday = userData.adsWatchedToday || 0;
+                            appState.referrals = userData.referrals || 0;
+                            appState.referralEarnings = userData.referralEarnings || 0;
+                            appState.lastBonusDate = userData.lastBonusDate || null;
+                            appState.withdrawalHistory = userData.withdrawalHistory || [];
+                            appState.referralsList = userData.referralsList || [];
+                            
+                            // Check if it's a new day for ads and bonus
+                            checkNewDay();
+                        } else {
+                            // New user, initialize data
+                            saveUserData();
+                        }
+                        
+                        // Update UI
+                        updateUI();
+                        
+                        // Hide loading overlay
+                        document.getElementById('loadingOverlay').style.display = 'none';
+                    })
+                    .catch((error) => {
+                        clearTimeout(timeoutId);
+                        console.error("Error loading user data:", error);
+                        showToast("Firebase connection failed. Running in offline mode.", "warning");
+                        initializeOfflineMode();
+                    });
+            } catch (error) {
+                console.error("Error setting up Firebase:", error);
+                initializeOfflineMode();
+            }
+        }
+        
+        // Initialize offline mode with local storage
+        function initializeOfflineMode() {
+            try {
+                // Load from localStorage if available
+                const savedData = localStorage.getItem(`earnmini_user_${user.id}`);
+                if (savedData) {
+                    const userData = JSON.parse(savedData);
+                    appState.points = userData.points || 0;
+                    appState.adsWatchedToday = userData.adsWatchedToday || 0;
+                    appState.referrals = userData.referrals || 0;
+                    appState.referralEarnings = userData.referralEarnings || 0;
+                    appState.lastBonusDate = userData.lastBonusDate || null;
+                    appState.withdrawalHistory = userData.withdrawalHistory || [];
+                    appState.referralsList = userData.referralsList || [];
+                }
+                
+                checkNewDay();
+                updateUI();
+                document.getElementById('loadingOverlay').style.display = 'none';
+                
+                console.log("App initialized in offline mode");
+            } catch (error) {
+                console.error("Error in offline mode:", error);
+                // Force hide loading and show basic UI
+                document.getElementById('loadingOverlay').style.display = 'none';
+                updateUI();
+            }
         }
         
         // Save user data to Firebase
         function saveUserData() {
-            const userRef = database.ref(`users/${user.id}`);
-            
-            userRef.update({
-                points: appState.points,
-                adsWatchedToday: appState.adsWatchedToday,
-                referrals: appState.referrals,
-                referralEarnings: appState.referralEarnings,
-                lastBonusDate: appState.lastBonusDate,
-                withdrawalHistory: appState.withdrawalHistory,
-                referralsList: appState.referralsList,
-                lastUpdated: firebase.database.ServerValue.TIMESTAMP
-            })
-            .then(() => {
-                console.log("User data saved successfully");
-            })
-            .catch((error) => {
+            try {
+                // Save to localStorage as backup
+                const userData = {
+                    points: appState.points,
+                    adsWatchedToday: appState.adsWatchedToday,
+                    referrals: appState.referrals,
+                    referralEarnings: appState.referralEarnings,
+                    lastBonusDate: appState.lastBonusDate,
+                    withdrawalHistory: appState.withdrawalHistory,
+                    referralsList: appState.referralsList,
+                    lastUpdated: Date.now()
+                };
+                
+                localStorage.setItem(`earnmini_user_${user.id}`, JSON.stringify(userData));
+                
+                // Try to save to Firebase if available
+                if (database) {
+                    const userRef = database.ref(`users/${user.id}`);
+                    
+                    userRef.update({
+                        ...userData,
+                        lastUpdated: firebase.database.ServerValue.TIMESTAMP
+                    })
+                    .then(() => {
+                        console.log("User data saved to Firebase successfully");
+                    })
+                    .catch((error) => {
+                        console.error("Error saving user data to Firebase:", error);
+                        console.log("Data saved locally instead");
+                    });
+                } else {
+                    console.log("Firebase not available, data saved locally");
+                }
+            } catch (error) {
                 console.error("Error saving user data:", error);
-                showToast("Failed to save data. Please check your connection.", "error");
-            });
+                showToast("Failed to save data.", "error");
+            }
         }
         
         // Check if it's a new day
