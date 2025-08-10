@@ -1127,72 +1127,120 @@
     
     <!-- Custom JS -->
     <script>
-        // Initialize Firebase
-        const firebaseConfig = {
-            apiKey: "AIzaSyCv5bpFnvxR1gUXRoh4Td434BqfE8Cnqzc",
-            authDomain: "earnminibot.firebaseapp.com",
-            databaseURL: "https://earnminibot-default-rtdb.asia-southeast1.firebasedatabase.app",
-            projectId: "earnminibot",
-            storageBucket: "earnminibot.firebasestorage.app",
-            messagingSenderId: "693031433788",
-            appId: "1:693031433788:web:04d1553a15f03df0ecf539",
-            measurementId: "G-RL28PGB99W"
-        };
+        // Wait for DOM to be fully loaded
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeApp();
+        });
         
-        firebase.initializeApp(firebaseConfig);
-        const database = firebase.database();
-        
-        // Initialize Telegram Web App
-        let tg, user;
-        
-        try {
-            tg = window.Telegram?.WebApp;
-            if (tg) {
-                tg.ready();
-                tg.expand();
-                user = tg.initDataUnsafe?.user;
-            }
-        } catch (error) {
-            console.log("Not running in Telegram environment:", error);
-        }
-        
-        // Fallback user data for testing
-        if (!user) {
-            user = {
-                id: 123456789,
-                first_name: "Test User",
-                last_name: "Demo",
-                username: "testuser",
-                photo_url: "https://via.placeholder.com/60x60/0088cc/ffffff?text=TU"
+        function initializeApp() {
+            console.log('Starting app initialization...');
+            
+            // Initialize Firebase
+            const firebaseConfig = {
+                apiKey: "AIzaSyCv5bpFnvxR1gUXRoh4Td434BqfE8Cnqzc",
+                authDomain: "earnminibot.firebaseapp.com",
+                databaseURL: "https://earnminibot-default-rtdb.asia-southeast1.firebasedatabase.app",
+                projectId: "earnminibot",
+                storageBucket: "earnminibot.firebasestorage.app",
+                messagingSenderId: "693031433788",
+                appId: "1:693031433788:web:04d1553a15f03df0ecf539",
+                measurementId: "G-RL28PGB99W"
             };
-            console.log("Using fallback user data for testing:", user);
+            
+            try {
+                firebase.initializeApp(firebaseConfig);
+                window.database = firebase.database();
+                console.log('Firebase initialized successfully');
+            } catch (error) {
+                console.error('Firebase initialization failed:', error);
+                window.database = null;
+            }
+            
+            // Initialize Telegram Web App
+            let tg, user;
+            
+            // Check if we're in Telegram environment
+            if (typeof window.Telegram !== 'undefined' && window.Telegram.WebApp) {
+                console.log('Telegram Web App detected');
+                tg = window.Telegram.WebApp;
+                
+                try {
+                    tg.ready();
+                    tg.expand();
+                    
+                    // Get user data from Telegram
+                    if (tg.initDataUnsafe && tg.initDataUnsafe.user) {
+                        user = tg.initDataUnsafe.user;
+                        console.log('Telegram user data loaded:', user);
+                    } else {
+                        console.log('No user data in initDataUnsafe, checking initData...');
+                        // Try to parse initData manually
+                        if (tg.initData) {
+                            const urlParams = new URLSearchParams(tg.initData);
+                            const userParam = urlParams.get('user');
+                            if (userParam) {
+                                user = JSON.parse(decodeURIComponent(userParam));
+                                console.log('User data from initData:', user);
+                            }
+                        }
+                    }
+                } catch (error) {
+                    console.error('Error initializing Telegram Web App:', error);
+                }
+            } else {
+                console.log('Not running in Telegram environment');
+            }
+            
+            // Fallback user data for testing
+            if (!user) {
+                user = {
+                    id: 123456789,
+                    first_name: "Test User",
+                    last_name: "Demo",
+                    username: "testuser",
+                    photo_url: "https://via.placeholder.com/60x60/0088cc/ffffff?text=TU"
+                };
+                console.log("Using fallback user data for testing:", user);
+            }
+            
+            // Make user data globally available
+            window.currentUser = user;
+            window.tgApp = tg;
+            
+            console.log("Final user data:", user);
+            
+            // Bot username and token
+            window.botUsername = "earnmini_bot";
+            window.botToken = "8154822596:AAHA4jB7ZAhPb5-xB8KiMp6iNMjgC5K67B8";
+            
+            // App state
+            window.appState = {
+                points: 0,
+                adsWatchedToday: 0,
+                maxAdsPerDay: 10,
+                referrals: 0,
+                referralEarnings: 0,
+                lastBonusDate: null,
+                nextBonusTime: null,
+                withdrawalHistory: [],
+                referralsList: []
+            };
+            
+            // Show loading overlay
+            document.getElementById('loadingOverlay').style.display = 'flex';
+            
+            // Start initialization
+            setTimeout(() => {
+                initializeUI();
+            }, 1000); // Give time for Telegram to fully load
         }
-        
-        console.log("User data:", user);
-        
-        // Bot username
-        const botUsername = "earnmini_bot";
-        const botToken = "8154822596:AAHA4jB7ZAhPb5-xB8KiMp6iNMjgC5K67B8";
-        
-        // App state
-        const appState = {
-            points: 0,
-            adsWatchedToday: 0,
-            maxAdsPerDay: 10,
-            referrals: 0,
-            referralEarnings: 0,
-            lastBonusDate: null,
-            nextBonusTime: null,
-            withdrawalHistory: [],
-            referralsList: []
-        };
-        
-        // Show loading overlay
-        document.getElementById('loadingOverlay').style.display = 'flex';
         
         // Initialize UI with user data
         function initializeUI() {
             try {
+                const user = window.currentUser;
+                console.log('Initializing UI with user:', user);
+                
                 // Set user profile info
                 document.getElementById('userName').textContent = user.first_name + (user.last_name ? ' ' + user.last_name : '');
                 document.getElementById('userId').textContent = `ID: ${user.id}`;
@@ -1201,10 +1249,13 @@
                 // Set user profile picture
                 if (user.photo_url) {
                     document.getElementById('userProfilePic').src = user.photo_url;
+                } else {
+                    // Use placeholder if no photo
+                    document.getElementById('userProfilePic').src = `https://via.placeholder.com/60x60/0088cc/ffffff?text=${user.first_name.charAt(0)}`;
                 }
                 
                 // Generate referral link
-                const referralLink = `https://t.me/${botUsername}?start=${user.id}`;
+                const referralLink = `https://t.me/${window.botUsername}?start=${user.id}`;
                 document.getElementById('referralLink').textContent = referralLink;
                 
                 // Load user data from Firebase
@@ -1219,33 +1270,45 @@
         // Load user data from Firebase
         function loadUserData() {
             try {
+                const user = window.currentUser;
+                const database = window.database;
+                
+                if (!database) {
+                    console.log("Firebase not available, using offline mode");
+                    initializeOfflineMode();
+                    return;
+                }
+                
                 const userRef = database.ref(`users/${user.id}`);
                 
                 // Set a timeout to prevent infinite loading
                 const timeoutId = setTimeout(() => {
                     console.log("Firebase connection timeout, using offline mode");
                     initializeOfflineMode();
-                }, 10000);
+                }, 5000);
                 
                 userRef.once('value')
                     .then((snapshot) => {
                         clearTimeout(timeoutId);
                         const userData = snapshot.val();
                         
+                        console.log('Firebase data loaded:', userData);
+                        
                         if (userData) {
                             // User exists, load data
-                            appState.points = userData.points || 0;
-                            appState.adsWatchedToday = userData.adsWatchedToday || 0;
-                            appState.referrals = userData.referrals || 0;
-                            appState.referralEarnings = userData.referralEarnings || 0;
-                            appState.lastBonusDate = userData.lastBonusDate || null;
-                            appState.withdrawalHistory = userData.withdrawalHistory || [];
-                            appState.referralsList = userData.referralsList || [];
+                            window.appState.points = userData.points || 0;
+                            window.appState.adsWatchedToday = userData.adsWatchedToday || 0;
+                            window.appState.referrals = userData.referrals || 0;
+                            window.appState.referralEarnings = userData.referralEarnings || 0;
+                            window.appState.lastBonusDate = userData.lastBonusDate || null;
+                            window.appState.withdrawalHistory = userData.withdrawalHistory || [];
+                            window.appState.referralsList = userData.referralsList || [];
                             
                             // Check if it's a new day for ads and bonus
                             checkNewDay();
                         } else {
                             // New user, initialize data
+                            console.log('New user detected, initializing...');
                             saveUserData();
                         }
                         
@@ -1253,7 +1316,9 @@
                         updateUI();
                         
                         // Hide loading overlay
-                        document.getElementById('loadingOverlay').style.display = 'none';
+                        setTimeout(() => {
+                            document.getElementById('loadingOverlay').style.display = 'none';
+                        }, 500);
                     })
                     .catch((error) => {
                         clearTimeout(timeoutId);
@@ -1270,28 +1335,39 @@
         // Initialize offline mode with local storage
         function initializeOfflineMode() {
             try {
+                const user = window.currentUser;
+                console.log('Initializing offline mode for user:', user.id);
+                
                 // Load from localStorage if available
                 const savedData = localStorage.getItem(`earnmini_user_${user.id}`);
                 if (savedData) {
                     const userData = JSON.parse(savedData);
-                    appState.points = userData.points || 0;
-                    appState.adsWatchedToday = userData.adsWatchedToday || 0;
-                    appState.referrals = userData.referrals || 0;
-                    appState.referralEarnings = userData.referralEarnings || 0;
-                    appState.lastBonusDate = userData.lastBonusDate || null;
-                    appState.withdrawalHistory = userData.withdrawalHistory || [];
-                    appState.referralsList = userData.referralsList || [];
+                    window.appState.points = userData.points || 0;
+                    window.appState.adsWatchedToday = userData.adsWatchedToday || 0;
+                    window.appState.referrals = userData.referrals || 0;
+                    window.appState.referralEarnings = userData.referralEarnings || 0;
+                    window.appState.lastBonusDate = userData.lastBonusDate || null;
+                    window.appState.withdrawalHistory = userData.withdrawalHistory || [];
+                    window.appState.referralsList = userData.referralsList || [];
+                    console.log('Loaded offline data:', userData);
+                } else {
+                    console.log('No offline data found, using defaults');
                 }
                 
                 checkNewDay();
                 updateUI();
-                document.getElementById('loadingOverlay').style.display = 'none';
                 
-                console.log("App initialized in offline mode");
+                setTimeout(() => {
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                }, 500);
+                
+                console.log("App initialized in offline mode successfully");
             } catch (error) {
                 console.error("Error in offline mode:", error);
                 // Force hide loading and show basic UI
-                document.getElementById('loadingOverlay').style.display = 'none';
+                setTimeout(() => {
+                    document.getElementById('loadingOverlay').style.display = 'none';
+                }, 1000);
                 updateUI();
             }
         }
@@ -1299,6 +1375,10 @@
         // Save user data to Firebase
         function saveUserData() {
             try {
+                const user = window.currentUser;
+                const database = window.database;
+                const appState = window.appState;
+                
                 // Save to localStorage as backup
                 const userData = {
                     points: appState.points,
@@ -1312,6 +1392,7 @@
                 };
                 
                 localStorage.setItem(`earnmini_user_${user.id}`, JSON.stringify(userData));
+                console.log('Data saved to localStorage');
                 
                 // Try to save to Firebase if available
                 if (database) {
@@ -1319,6 +1400,11 @@
                     
                     userRef.update({
                         ...userData,
+                        userInfo: {
+                            first_name: user.first_name,
+                            last_name: user.last_name,
+                            username: user.username
+                        },
                         lastUpdated: firebase.database.ServerValue.TIMESTAMP
                     })
                     .then(() => {
@@ -1341,10 +1427,11 @@
         function checkNewDay() {
             const today = new Date().toDateString();
             const lastAdDate = localStorage.getItem('lastAdDate');
+            const appState = window.appState;
             
             if (lastAdDate !== today) {
                 // Reset ads watched today
-                appState.adsWatchedToday = 0;
+                window.appState.adsWatchedToday = 0;
                 localStorage.setItem('lastAdDate', today);
                 
                 // Calculate next bonus time
@@ -1352,7 +1439,7 @@
                 const tomorrow = new Date(now);
                 tomorrow.setDate(tomorrow.getDate() + 1);
                 tomorrow.setHours(0, 0, 0, 0);
-                appState.nextBonusTime = tomorrow;
+                window.appState.nextBonusTime = tomorrow;
                 
                 // Update UI
                 updateUI();
@@ -1360,64 +1447,76 @@
             
             // Check if bonus is available
             if (appState.lastBonusDate !== today) {
-                appState.lastBonusDate = null;
+                window.appState.lastBonusDate = null;
             }
         }
         
         // Update UI elements
         function updateUI() {
-            // Update points
-            document.getElementById('userPoints').textContent = appState.points;
-            document.getElementById('totalPointsStat').textContent = appState.points;
-            document.getElementById('withdrawBalance').textContent = appState.points;
-            document.getElementById('homeBalance').textContent = appState.points;
-            
-            // Update ad progress
-            const adProgressPercent = (appState.adsWatchedToday / appState.maxAdsPerDay) * 100;
-            document.getElementById('homeAdProgress').style.width = `${adProgressPercent}%`;
-            document.getElementById('homeAdProgress').textContent = `${appState.adsWatchedToday}/${appState.maxAdsPerDay}`;
-            document.getElementById('homeAdCount').textContent = `${appState.adsWatchedToday}/${appState.maxAdsPerDay}`;
-            
-            document.getElementById('earnAdProgress').style.width = `${adProgressPercent}%`;
-            document.getElementById('earnAdProgress').textContent = `${appState.adsWatchedToday}/${appState.maxAdsPerDay}`;
-            document.getElementById('earnAdCount').textContent = `${appState.adsWatchedToday}/${appState.maxAdsPerDay}`;
-            
-            // Update referral stats
-            document.getElementById('totalReferrals').textContent = appState.referrals;
-            document.getElementById('referralEarnings').textContent = appState.referralEarnings;
-            document.getElementById('referralCountStat').textContent = appState.referrals;
-            
-            // Update withdrawal count
-            document.getElementById('withdrawalCountStat').textContent = appState.withdrawalHistory.length;
-            
-            // Update next bonus time
-            if (appState.nextBonusTime) {
-                const now = new Date();
-                const diff = appState.nextBonusTime - now;
+            try {
+                const appState = window.appState;
+                console.log('Updating UI with state:', appState);
                 
-                if (diff > 0) {
-                    const hours = Math.floor(diff / (1000 * 60 * 60));
-                    const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-                    document.getElementById('nextBonusTime').textContent = `${hours}h ${minutes}m`;
-                } else {
-                    document.getElementById('nextBonusTime').textContent = "Available now";
+                // Update points
+                document.getElementById('userPoints').textContent = appState.points;
+                document.getElementById('totalPointsStat').textContent = appState.points;
+                document.getElementById('withdrawBalance').textContent = appState.points;
+                document.getElementById('homeBalance').textContent = appState.points;
+                
+                // Update ad progress
+                const adProgressPercent = (appState.adsWatchedToday / appState.maxAdsPerDay) * 100;
+                document.getElementById('homeAdProgress').style.width = `${adProgressPercent}%`;
+                document.getElementById('homeAdProgress').textContent = `${appState.adsWatchedToday}/${appState.maxAdsPerDay}`;
+                document.getElementById('homeAdCount').textContent = `${appState.adsWatchedToday}/${appState.maxAdsPerDay}`;
+                
+                document.getElementById('earnAdProgress').style.width = `${adProgressPercent}%`;
+                document.getElementById('earnAdProgress').textContent = `${appState.adsWatchedToday}/${appState.maxAdsPerDay}`;
+                document.getElementById('earnAdCount').textContent = `${appState.adsWatchedToday}/${appState.maxAdsPerDay}`;
+                
+                // Update referral stats
+                document.getElementById('totalReferrals').textContent = appState.referrals;
+                document.getElementById('referralEarnings').textContent = appState.referralEarnings;
+                document.getElementById('referralCountStat').textContent = appState.referrals;
+                
+                // Update withdrawal count
+                document.getElementById('withdrawalCountStat').textContent = appState.withdrawalHistory.length;
+                
+                // Update next bonus time
+                if (appState.nextBonusTime) {
+                    const now = new Date();
+                    const diff = appState.nextBonusTime - now;
+                    
+                    if (diff > 0) {
+                        const hours = Math.floor(diff / (1000 * 60 * 60));
+                        const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
+                        document.getElementById('nextBonusTime').textContent = `${hours}h ${minutes}m`;
+                    } else {
+                        document.getElementById('nextBonusTime').textContent = "Available now";
+                    }
                 }
+                
+                // Update withdrawal history
+                updateWithdrawalHistory();
+                
+                // Update referrals list
+                updateReferralsList();
+                
+                // Save data
+                saveUserData();
+                
+                console.log('UI updated successfully');
+            } catch (error) {
+                console.error('Error updating UI:', error);
+                // Force hide loading overlay
+                document.getElementById('loadingOverlay').style.display = 'none';
             }
-            
-            // Update withdrawal history
-            updateWithdrawalHistory();
-            
-            // Update referrals list
-            updateReferralsList();
-            
-            // Save data
-            saveUserData();
         }
         
         // Update withdrawal history UI
         function updateWithdrawalHistory() {
             const historyContainer = document.getElementById('withdrawHistoryList');
             const emptyMessage = document.getElementById('withdrawHistoryEmpty');
+            const appState = window.appState;
             
             if (appState.withdrawalHistory.length === 0) {
                 historyContainer.classList.add('d-none');
@@ -1459,6 +1558,7 @@
         function updateReferralsList() {
             const referralsContainer = document.getElementById('referralsList');
             const emptyMessage = document.getElementById('referralsEmptyState');
+            const appState = window.appState;
             
             if (appState.referralsList.length === 0) {
                 referralsContainer.classList.add('d-none');
@@ -1521,54 +1621,106 @@
             }, 3000);
         }
         
-        // Navigation handling
-        document.querySelectorAll('.nav-item').forEach(item => {
-            item.addEventListener('click', function() {
-                // Remove active class from all nav items and sections
-                document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
-                document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
-                
-                // Add active class to clicked nav item
-                this.classList.add('active');
-                
-                // Show corresponding section
-                const sectionId = this.getAttribute('data-section');
-                document.getElementById(sectionId).classList.add('active');
+        // Navigation handling (moved to initializeEventListeners)
+        function initializeEventListeners() {
+            // Navigation handling
+            document.querySelectorAll('.nav-item').forEach(item => {
+                item.addEventListener('click', function() {
+                    // Remove active class from all nav items and sections
+                    document.querySelectorAll('.nav-item').forEach(nav => nav.classList.remove('active'));
+                    document.querySelectorAll('.content-section').forEach(section => section.classList.remove('active'));
+                    
+                    // Add active class to clicked nav item
+                    this.classList.add('active');
+                    
+                    // Show corresponding section
+                    const sectionId = this.getAttribute('data-section');
+                    document.getElementById(sectionId).classList.add('active');
+                });
             });
-        });
-        
-        // Watch ad buttons
-        document.getElementById('homeWatchAdBtn').addEventListener('click', function() {
-            watchAd('home');
-        });
-        
-        document.getElementById('earnWatchAdBtn').addEventListener('click', function() {
-            watchAd('earn');
-        });
+            
+            // Watch ad buttons
+            document.getElementById('homeWatchAdBtn').addEventListener('click', function() {
+                watchAd('home');
+            });
+            
+            document.getElementById('earnWatchAdBtn').addEventListener('click', function() {
+                watchAd('earn');
+            });
+            
+            // Daily bonus buttons
+            document.getElementById('dailyBonusBtn').addEventListener('click', function() {
+                claimDailyBonus();
+            });
+            
+            // Referral buttons
+            document.getElementById('copyReferralBtn').addEventListener('click', function() {
+                const referralLink = document.getElementById('referralLink').textContent;
+                
+                navigator.clipboard.writeText(referralLink).then(() => {
+                    showToast('Referral link copied to clipboard!', 'success');
+                }).catch(err => {
+                    showToast('Failed to copy link.', 'error');
+                });
+            });
+            
+            document.getElementById('shareReferralBtn').addEventListener('click', function() {
+                const referralLink = document.getElementById('referralLink').textContent;
+                
+                // Share on Telegram
+                if (window.tgApp && window.tgApp.shareURL) {
+                    window.tgApp.shareURL(referralLink);
+                } else {
+                    // Fallback for browsers
+                    if (navigator.share) {
+                        navigator.share({
+                            title: 'Join EarnMini Bot',
+                            text: 'Use my referral link to join EarnMini Bot and earn points!',
+                            url: referralLink
+                        });
+                    } else {
+                        // Copy to clipboard as fallback
+                        navigator.clipboard.writeText(referralLink).then(() => {
+                            showToast('Referral link copied to clipboard!', 'success');
+                        }).catch(err => {
+                            showToast('Failed to copy link.', 'error');
+                        });
+                    }
+                }
+            });
+            
+            // Withdrawal method buttons
+            document.querySelectorAll('.withdraw-method').forEach(method => {
+                method.addEventListener('click', function() {
+                    const methodType = this.getAttribute('data-method');
+                    processWithdrawal(methodType);
+                });
+            });
+            
+            // FAQ button
+            document.getElementById('faqBtn').addEventListener('click', function() {
+                showToast('FAQ page coming soon!', 'info');
+            });
+            
+            // Tutorial button
+            document.getElementById('tutorialBtn').addEventListener('click', function() {
+                showToast('Tutorial video coming soon!', 'info');
+            });
+            
+            // Submit ticket button
+            document.getElementById('submitTicketBtn').addEventListener('click', function() {
+                showToast('Support ticket submitted!', 'success');
+            });
+        }
         
         // Watch ad function
         function watchAd(source) {
+            const appState = window.appState;
+            
             if (appState.adsWatchedToday >= appState.maxAdsPerDay) {
                 showToast('You have reached today\'s ad limit!', 'error');
                 return;
             }
-            
-            // Show loading state
-            const adOverlay = source === 'home' ? 
-                document.getElementById('homeAdOverlay') : 
-                document.getElementById('earnAdOverlay');
-            
-            adOverlay.innerHTML = `
-                <lottie-player
-                    src="https://assets9.lottiefiles.com/packages/lf20_x62chJ.json"
-                    background="transparent"
-                    speed="1"
-                    style="width: 100px; height: 100px;"
-                    loop
-                    autoplay>
-                </lottie-player>
-                <p class="mt-2">Loading ad...</p>
-            `;
             
             // Simulate ad loading and watching
             setTimeout(() => {
@@ -1576,6 +1728,10 @@
                 // For demo purposes, we'll simulate a rewarded ad
                 
                 // Show ad
+                const adOverlay = source === 'home' ? 
+                    document.getElementById('homeAdOverlay') : 
+                    document.getElementById('earnAdOverlay');
+                
                 adOverlay.innerHTML = `
                     <h4>Watching Ad</h4>
                     <p>Wait 30 seconds to earn reward</p>
@@ -1599,51 +1755,19 @@
                     if (progress >= 100) {
                         clearInterval(adInterval);
                         
-                        // Ad completed
-                        appState.points += 1;
-                        appState.adsWatchedToday += 1;
+                        // Simulate successful ad completion
+                        window.appState.points += 10;
+                        window.appState.adsWatchedToday++;
                         
-                        // Update UI
+                        showToast('Ad watched successfully! +10 points', 'success');
                         updateUI();
                         
-                        // Show success message
-                        adOverlay.innerHTML = `
-                            <lottie-player
-                                src="https://assets1.lottiefiles.com/packages/lf20_DMgKk1.json"
-                                background="transparent"
-                                speed="1"
-                                style="width: 100px; height: 100px;"
-                                autoplay>
-                            </lottie-player>
-                            <h4 class="mt-2">Success!</h4>
-                            <p>You've earned 1 point</p>
-                            <button class="btn btn-primary" id="${source}CloseAdBtn">Close</button>
-                        `;
-                        
-                        // Add close button event
-                        document.getElementById(`${source}CloseAdBtn`).addEventListener('click', function() {
-                            adOverlay.innerHTML = `
-                                <h4>Watch Ad</h4>
-                                <p>Earn 1 point per ad</p>
-                                <button class="btn btn-primary" id="${source}WatchAdBtn">Watch Ad</button>
-                            `;
-                            
-                            // Re-add event listener
-                            document.getElementById(`${source}WatchAdBtn`).addEventListener('click', function() {
-                                watchAd(source);
-                            });
-                        });
-                        
-                        showToast('Thank you for watching! You earned 1 point.', 'success');
+                        // Load Monetag ad (placeholder)
+                        loadMonetagAd();
                     }
                 }, 1000);
             }, 1500);
         }
-        
-        // Daily bonus buttons
-        document.getElementById('dailyBonusBtn').addEventListener('click', function() {
-            claimDailyBonus();
-        });
         
         document.getElementById('homeDailyBonusBtn').addEventListener('click', function() {
             claimDailyBonus();
@@ -1652,59 +1776,20 @@
         // Claim daily bonus function
         function claimDailyBonus() {
             const today = new Date().toDateString();
+            const appState = window.appState;
             
             if (appState.lastBonusDate === today) {
-                showToast('You have already claimed today\'s bonus!', 'error');
+                showToast('Daily bonus already claimed today!', 'warning');
                 return;
             }
             
-            // Award bonus
-            appState.points += 5;
-            appState.lastBonusDate = today;
+            // Give bonus points
+            window.appState.points += 50;
+            window.appState.lastBonusDate = today;
             
-            // Update UI
+            showToast('Daily bonus claimed! +50 points', 'success');
             updateUI();
-            
-            // Show success message
-            showToast('Daily bonus added successfully! You earned 5 points.', 'success');
         }
-        
-        // Referral buttons
-        document.getElementById('copyReferralBtn').addEventListener('click', function() {
-            const referralLink = document.getElementById('referralLink').textContent;
-            
-            // Copy to clipboard
-            navigator.clipboard.writeText(referralLink).then(() => {
-                showToast('Referral link copied to clipboard!', 'success');
-            }).catch(err => {
-                showToast('Failed to copy link.', 'error');
-            });
-        });
-        
-        document.getElementById('shareReferralBtn').addEventListener('click', function() {
-            const referralLink = document.getElementById('referralLink').textContent;
-            
-            // Share on Telegram
-            if (tg.shareURL) {
-                tg.shareURL(referralLink);
-            } else {
-                // Fallback for browsers
-                if (navigator.share) {
-                    navigator.share({
-                        title: 'Join EarnMini Bot',
-                        text: 'Use my referral link to join EarnMini Bot and earn points!',
-                        url: referralLink
-                    });
-                } else {
-                    // Copy to clipboard as fallback
-                    navigator.clipboard.writeText(referralLink).then(() => {
-                        showToast('Referral link copied to clipboard!', 'success');
-                    }).catch(err => {
-                        showToast('Failed to copy link.', 'error');
-                    });
-                }
-            }
-        });
         
         document.getElementById('homeReferralBtn').addEventListener('click', function() {
             // Switch to referral section
@@ -1715,73 +1800,36 @@
             document.getElementById('referralSection').classList.add('active');
         });
         
-        // Withdraw method selection
-        document.querySelectorAll('.withdraw-method').forEach(method => {
-            method.addEventListener('click', function() {
-                const methodType = this.getAttribute('data-method');
-                processWithdrawal(methodType);
-            });
-        });
-        
         // Process withdrawal
         function processWithdrawal(method) {
+            const appState = window.appState;
+            
             if (appState.points < 1000) {
-                showToast('Minimum withdrawal amount is 1000 points!', 'error');
+                showToast('Minimum withdrawal amount is 1000 points!', 'warning');
                 return;
             }
             
-            // In a real app, you would open a form to collect withdrawal details
-            // For demo purposes, we'll simulate a withdrawal
+            const amount = prompt(`Enter amount to withdraw (Min: 1000, Max: ${appState.points}):`);
             
-            // Deduct points
-            appState.points -= 1000;
-            
-            // Add to withdrawal history
-            appState.withdrawalHistory.push({
-                method: method.charAt(0).toUpperCase() + method.slice(1),
-                points: 1000,
-                date: new Date().toISOString(),
-                status: 'pending'
-            });
-            
-            // Update UI
-            updateUI();
-            
-            // Show success message
-            showToast('Withdrawal request submitted successfully!', 'success');
+            if (amount && parseInt(amount) >= 1000 && parseInt(amount) <= appState.points) {
+                // Process withdrawal
+                window.appState.points -= parseInt(amount);
+                
+                const withdrawal = {
+                    method: method,
+                    points: parseInt(amount),
+                    date: Date.now(),
+                    status: 'pending'
+                };
+                
+                window.appState.withdrawalHistory.push(withdrawal);
+                
+                showToast(`Withdrawal request submitted! ${amount} points via ${method}`, 'success');
+                updateUI();
+            } else {
+                showToast('Invalid withdrawal amount!', 'error');
+            }
         }
-        
-        // FAQ button
-        document.getElementById('faqBtn').addEventListener('click', function() {
-            // In a real app, you would navigate to a FAQ page
-            showToast('FAQ page coming soon!', 'info');
-        });
-        
-        // Tutorial button
-        document.getElementById('tutorialBtn').addEventListener('click', function() {
-            // In a real app, you would navigate to a tutorial page
-            showToast('Tutorial coming soon!', 'info');
-        });
-        
-        // Submit ticket button
-        document.getElementById('submitTicketBtn').addEventListener('click', function() {
-            const textarea = document.querySelector('#supportSection textarea');
-            const message = textarea.value.trim();
-            
-            if (!message) {
-                showToast('Please describe your issue!', 'error');
-                return;
-            }
-            
-            // In a real app, you would send this to your support system
-            // For demo purposes, we'll just show a success message
-            
-            // Clear textarea
-            textarea.value = '';
-            
-            // Show success message
-            showToast('Your ticket has been submitted successfully!', 'success');
-        });
         
         // Monetag ad integration (placeholder)
         function loadMonetagAd() {
@@ -1796,8 +1844,23 @@
             // document.body.appendChild(adScript);
         }
         
-        // Initialize the app
-        initializeUI();
+        // Initialize event listeners after DOM is ready
+        document.addEventListener('DOMContentLoaded', function() {
+            // Wait a bit more for everything to load
+            setTimeout(() => {
+                initializeEventListeners();
+            }, 2000);
+        });
+        
+        // Also initialize if DOM is already loaded
+        if (document.readyState === 'loading') {
+            // DOM is still loading
+        } else {
+            // DOM is already loaded
+            setTimeout(() => {
+                initializeEventListeners();
+            }, 2000);
+        }
     </script>
 </body>
 </html>
