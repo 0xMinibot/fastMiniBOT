@@ -449,13 +449,19 @@
             left: 0;
             right: 0;
             bottom: 0;
-            background: rgba(255,255,255,0.9);
+            background: rgba(255,255,255,0.95);
             display: flex;
             flex-direction: column;
             align-items: center;
             justify-content: center;
             z-index: 9999;
             backdrop-filter: blur(5px);
+            transition: opacity 0.3s ease-in-out;
+        }
+        
+        .loading-overlay.hidden {
+            opacity: 0;
+            pointer-events: none;
         }
         
         .loading-overlay h4 {
@@ -1169,7 +1175,8 @@
         };
         
         // Show loading overlay
-        document.getElementById('loadingOverlay').style.display = 'flex';
+        const loadingOverlay = document.getElementById('loadingOverlay');
+        loadingOverlay.style.display = 'flex';
         
         // Initialize UI with user data
         function initializeUI() {
@@ -1219,15 +1226,21 @@
                     // Update UI
                     updateUI();
                     
-                    // Hide loading overlay
-                    document.getElementById('loadingOverlay').style.display = 'none';
+                    // Hide loading overlay with fade effect
+                    loadingOverlay.classList.add('hidden');
+                    setTimeout(() => {
+                        loadingOverlay.style.display = 'none';
+                    }, 300);
                 })
                 .catch((error) => {
                     console.error("Error loading user data:", error);
                     showToast("Failed to load user data. Please try again.", "error");
                     
-                    // Hide loading overlay
-                    document.getElementById('loadingOverlay').style.display = 'none';
+                    // Hide loading overlay even on error
+                    loadingOverlay.classList.add('hidden');
+                    setTimeout(() => {
+                        loadingOverlay.style.display = 'none';
+                    }, 300);
                 });
         }
         
